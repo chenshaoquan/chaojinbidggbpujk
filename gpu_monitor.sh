@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # GPU自动监控脚本 - VastAI 功耗上报
-# 一条命令安装: curl -fsSL https://raw.githubusercontent.com/你的用户名/仓库名/main/gpu_monitor.sh | bash -s -- http://你的服务器地址:端口
-# 或者下载后运行: ./gpu_monitor.sh http://你的服务器地址:端口
+# 一条命令安装: curl -fsSL https://raw.githubusercontent.com/chenshaoquan/chaojinbidggbpujk/main/gpu_monitor.sh | sudo bash -s -- http://你的服务器:端口
+# 或者下载后运行: ./gpu_monitor.sh http://你的服务器:端口
 
 # ========================================
 # 配置
@@ -34,16 +34,17 @@ get_machine_id() {
     # 从 kaalia 日志提取
     local mid=$(grep -hoP 'machine_id=\K[0-9]+' /var/lib/vastai_kaalia/kaalia*.log 2>/dev/null | sort -u | head -1)
     
-    if [ -n "$mid" ]; then
+    # 只有获取到非空有效值时才更新文件
+    if [ -n "$mid" ] && [[ "$mid" =~ ^[0-9]+$ ]]; then
         echo "$mid" > "$MACHINE_ID_FILE"
         MACHINE_ID="$mid"
         return 0
     elif [ -f "$MACHINE_ID_FILE" ] && [ -s "$MACHINE_ID_FILE" ]; then
+        # 日志中没有获取到，使用已缓存的值（不覆盖）
         MACHINE_ID=$(cat "$MACHINE_ID_FILE" | tr -d '[:space:]')
-        return 0
-    else
-        return 1
+        [ -n "$MACHINE_ID" ] && return 0
     fi
+    return 1
 }
 
 # ========================================
@@ -163,13 +164,15 @@ TIMEOUT_DURATION=5
 
 get_machine_id() {
     local mid=$(grep -hoP 'machine_id=\K[0-9]+' /var/lib/vastai_kaalia/kaalia*.log 2>/dev/null | sort -u | head -1)
-    if [ -n "$mid" ]; then
+    # 只有获取到非空有效值时才更新文件
+    if [ -n "$mid" ] && [[ "$mid" =~ ^[0-9]+$ ]]; then
         echo "$mid" > "$MACHINE_ID_FILE"
         MACHINE_ID="$mid"
         return 0
     elif [ -f "$MACHINE_ID_FILE" ] && [ -s "$MACHINE_ID_FILE" ]; then
+        # 日志中没有获取到，使用已缓存的值（不覆盖）
         MACHINE_ID=$(cat "$MACHINE_ID_FILE" | tr -d '[:space:]')
-        return 0
+        [ -n "$MACHINE_ID" ] && return 0
     fi
     return 1
 }
@@ -251,7 +254,7 @@ Description=Update machine_id from kaalia logs
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "grep -hoP 'machine_id=\\K[0-9]+' /var/lib/vastai_kaalia/kaalia*.log 2>/dev/null | sort -u > /root/machine_id.txt"
+ExecStart=/bin/bash -c "mid=$(grep -hoP 'machine_id=\\K[0-9]+' /var/lib/vastai_kaalia/kaalia*.log 2>/dev/null | sort -u | head -1); [ -n \"$mid\" ] && echo \"$mid\" > /root/machine_id.txt"
 EOF
 
     cat > /etc/systemd/system/machine-id-update.timer << 'EOF'
@@ -325,10 +328,10 @@ case "${1:-}" in
             echo "GPU 功耗监控脚本"
             echo ""
             echo "一键安装:"
-            echo "  curl -fsSL <脚本URL> | sudo bash -s -- <API地址>"
+            echo "  curl -fsSL https://raw.githubusercontent.com/chenshaoquan/chaojinbidggbpujk/main/gpu_monitor.sh | sudo bash -s -- <API地址>"
             echo ""
             echo "示例:"
-            echo "  curl -fsSL https://raw.githubusercontent.com/xxx/gpu_monitor.sh | sudo bash -s -- http://server:3000"
+            echo "  curl -fsSL https://raw.githubusercontent.com/chenshaoquan/chaojinbidggbpujk/main/gpu_monitor.sh | sudo bash -s -- http://server:3000"
             echo ""
             echo "卸载:"
             echo "  sudo $0 --uninstall"
