@@ -293,6 +293,7 @@ EOF
     systemctl enable --now machine-id-update.timer
     systemctl start machine-id-update.service
     systemctl enable --now "$SERVICE_NAME"
+    systemctl restart "$SERVICE_NAME"
     
     echo ""
     log_success "=========================================="
