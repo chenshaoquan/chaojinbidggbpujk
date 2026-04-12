@@ -30,9 +30,18 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # ========================================
 # 获取 machine_id
 # ========================================
+extract_latest_machine_id() {
+    grep -hE 'machine_id=[0-9]+' /var/lib/vastai_kaalia/kaalia*.log* 2>/dev/null \
+      | sed -n 's/.*\[\([0-9-]\+ [0-9:.]\+\)\].*machine_id=\([0-9]\+\).*/\1|\2/p' \
+      | sort \
+      | tail -n 1 \
+      | cut -d'|' -f2
+}
+
 get_machine_id() {
-    # 从 kaalia 日志提取
-    local mid=$(grep -hoP 'machine_id=\K[0-9]+' /var/lib/vastai_kaalia/kaalia*.log 2>/dev/null | sort -u | head -1)
+    # 从 kaalia 日志中按时间提取最新 machine_id
+    local mid
+    mid=$(extract_latest_machine_id)
     
     # 只有获取到非空有效值时才更新文件
     if [ -n "$mid" ] && [[ "$mid" =~ ^[0-9]+$ ]]; then
@@ -73,7 +82,7 @@ get_gpu_info() {
     for u in "${utils[@]}"; do
         [[ "$u" =~ ^[0-9.]+$ ]] && { util_sum=$(awk "BEGIN {print $util_sum + $u}"); util_count=$((util_count + 1)); }
     done
-    GPU_UTIL=$(printf "%.1f" "$(awk "BEGIN {print $util_count > 0 ? $util_sum / $util_count : 0}")")
+    GPU_UTIL=$(printf "%.1f" "$(awk "BEGIN {print ($util_count > 0) ? ($util_sum / $util_count) : 0}")")
     
     return 0
 }
@@ -162,8 +171,17 @@ MACHINE_ID_FILE="/root/machine_id.txt"
 MONITOR_INTERVAL=10
 TIMEOUT_DURATION=5
 
+extract_latest_machine_id() {
+    grep -hE 'machine_id=[0-9]+' /var/lib/vastai_kaalia/kaalia*.log* 2>/dev/null \
+      | sed -n 's/.*\[\([0-9-]\+ [0-9:.]\+\)\].*machine_id=\([0-9]\+\).*/\1|\2/p' \
+      | sort \
+      | tail -n 1 \
+      | cut -d'|' -f2
+}
+
 get_machine_id() {
-    local mid=$(grep -hoP 'machine_id=\K[0-9]+' /var/lib/vastai_kaalia/kaalia*.log 2>/dev/null | sort -u | head -1)
+    local mid
+    mid=$(extract_latest_machine_id)
     # 只有获取到非空有效值时才更新文件
     if [ -n "$mid" ] && [[ "$mid" =~ ^[0-9]+$ ]]; then
         echo "$mid" > "$MACHINE_ID_FILE"
@@ -200,7 +218,7 @@ get_gpu_info() {
     for u in "${utils[@]}"; do
         [[ "$u" =~ ^[0-9.]+$ ]] && { util_sum=$(awk "BEGIN {print $util_sum + $u}"); util_count=$((util_count + 1)); }
     done
-    GPU_UTIL=$(printf "%.1f" "$(awk "BEGIN {print $util_count > 0 ? $util_sum / $util_count : 0}")")
+    GPU_UTIL=$(printf "%.1f" "$(awk "BEGIN {print ($util_count > 0) ? ($util_sum / $util_count) : 0}")")
     
     return 0
 }
@@ -254,7 +272,7 @@ Description=Update machine_id from kaalia logs
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "mid=$(grep -hoP 'machine_id=\\K[0-9]+' /var/lib/vastai_kaalia/kaalia*.log 2>/dev/null | sort -u | head -1); [ -n \"$mid\" ] && echo \"$mid\" > /root/machine_id.txt"
+ExecStart=/bin/bash -c "mid=$(grep -hE 'machine_id=[0-9]+' /var/lib/vastai_kaalia/kaalia*.log* 2>/dev/null | sed -n 's/.*\\[\\([0-9-]\\+ [0-9:.]\\+\\)\\].*machine_id=\\([0-9]\\+\\).*/\\1|\\2/p' | sort | tail -n 1 | cut -d'|' -f2); [ -n \"$mid\" ] && echo \"$mid\" > /root/machine_id.txt"
 EOF
 
     cat > /etc/systemd/system/machine-id-update.timer << 'EOF'
